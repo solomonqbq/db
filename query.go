@@ -65,6 +65,7 @@ func (q *Query) One(dest interface{}) error {
 	sqlquery := q.sqlquery(table, structval)
 	rows, err := q.mapping.session.Query(sqlquery, q.filtervals...)
 	if err != nil {
+		q.mapping.session.log.Error("select query error: %s\n%s", err, sqlquery)
 		return err
 	}
 	defer rows.Close()
@@ -136,12 +137,58 @@ func (q *Query) All(dest interface{}) error {
 	return nil
 }
 
-func (q *Query) Count() (int64, error) {
-	return 0, nil
+func (q *Query) Count() (count int64, err error) {
+	table, err := q.mapping.tableinfo()
+	if err != nil {
+		return 0, err
+	}
+	sqlChunks := []string{`SELECT COUNT(*) FROM "`, table.name, `" `}
+	if len(q.filtercond) != 0 {
+		sqlChunks = append(sqlChunks, ` WHERE `)
+		for i, cond := range q.filtercond {
+			sqlChunks = append(sqlChunks, cond, ` ?`)
+			if i != len(q.filtercond)-1 {
+				sqlChunks = append(sqlChunks, cond, ` AND `)
+			}
+		}
+	}
+	sqlquery := strings.Join(sqlChunks, "")
+	rows, err := q.mapping.session.Query(sqlquery, q.filtervals...)
+	if err != nil {
+		q.mapping.session.log.Error("count query error: %s\n%s", err, sqlquery)
+		return 0, err
+	}
+	defer rows.Close()
+	rows.Next()
+	err = rows.Scan(&count)
+	return count, err
 }
 
-func (q *Query) Exists() (bool, error) {
-	return false, nil
+func (q *Query) Exists() (exists bool, err error) {
+	table, err := q.mapping.tableinfo()
+	if err != nil {
+		return false, err
+	}
+	sqlChunks := []string{`SELECT 1 FROM "`, table.name, `" `}
+	if len(q.filtercond) != 0 {
+		sqlChunks = append(sqlChunks, ` WHERE `)
+		for i, cond := range q.filtercond {
+			sqlChunks = append(sqlChunks, cond, ` ?`)
+			if i != len(q.filtercond)-1 {
+				sqlChunks = append(sqlChunks, cond, ` AND `)
+			}
+		}
+	}
+	sqlChunks = append(sqlChunks, " LIMIT 1")
+	sqlquery := strings.Join(sqlChunks, "")
+	rows, err := q.mapping.session.Query(sqlquery, q.filtervals...)
+	if err != nil {
+		q.mapping.session.log.Error("exists test query error: %s\n%s", err, sqlquery)
+		return false, err
+	}
+	exists = rows.Next()
+	rows.Close()
+	return exists, err
 }
 
 func (q *Query) sqlargs(table *tableinfo, structval reflect.Value) (args []interface{}) {
@@ -171,7 +218,7 @@ func (q *Query) sqlquery(table *tableinfo, structval reflect.Value) (sql string)
 	if len(q.filtercond) != 0 {
 		sqlChunks = append(sqlChunks, ` WHERE `)
 		for i, cond := range q.filtercond {
-			sqlChunks = append(sqlChunks, cond, `?`)
+			sqlChunks = append(sqlChunks, cond, ` ?`)
 			if i != len(q.filtercond)-1 {
 				sqlChunks = append(sqlChunks, cond, ` AND `)
 			}
@@ -186,7 +233,7 @@ func (q *Query) sqlquery(table *tableinfo, structval reflect.Value) (sql string)
 		for _, name := range q.order.desc {
 			sqlChunks = append(sqlChunks, `"`, name, `" DESC`, `, `)
 		}
-		sqlChunks[len(sqlChunks) - 1] = " "
+		sqlChunks[len(sqlChunks)-1] = " "
 	}
 
 	if q.limit > -1 {

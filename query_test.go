@@ -69,5 +69,45 @@ func TestMappingQuery(t *testing.T) {
 				t.Fatalf("expected ascending order, got: [%d, %d]", users[0].Id, users[1].Id)
 			}
 		}()
+
+		// count
+		func () {
+			q := session.Table("users").Query()
+			if count, err := q.Count(); err != nil {
+				t.Fatalf("cannot count all users: %s", err)
+			} else if count != 3 {
+				t.Fatalf("expected count to return 3, got %d", count)
+			}
+			// with filter
+			if count, err := q.Where("name =", "bob").Count(); err != nil {
+				t.Fatalf("cannot count all users: %s", err)
+			} else if count != 1 {
+				t.Fatalf("expected count to return 1, got %d", count)
+			}
+		}()
+
+		// exists
+		func () {
+			q := session.Table("users").Query()
+			if exists, err := q.Exists(); err != nil {
+				t.Fatalf("cannot check if a user exists: %s", err)
+			} else if !exists {
+				t.Fatal("expected users table to not be empty")
+			}
+			// with filter
+			q = session.Table("users").Query()
+			if exists, err := q.Where("name =", "bob").Exists(); err != nil {
+				t.Fatalf("cannot check if a user exists: %s", err)
+			} else if !exists {
+				t.Fatal("expected users with name 'bob' to exist")
+			}
+			// with filter
+			q = session.Table("users").Query()
+			if exists, err := q.Where("name =", "doesnotexist").Exists(); err != nil {
+				t.Fatalf("cannot check if a user exists: %s", err)
+			} else if exists {
+				t.Fatal("expected users with name 'doesnotexist' to not exist")
+			}
+		}()
 	})
 }
