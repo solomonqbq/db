@@ -1,7 +1,10 @@
 package db
 
 import (
+	"bufio"
 	"database/sql"
+	"io"
+	"os"
 )
 
 type Session struct {
@@ -16,6 +19,43 @@ func Use(db *sql.DB, dialect Dialect) *Session {
 		db:      db,
 		log:     standardLogger(),
 		dialect: dialect,
+	}
+}
+
+func ExecFile(db *sql.DB, filepath string) error {
+	fd, err := os.Open(filepath)
+	if err != nil {
+		return err
+	}
+	defer fd.Close()
+
+	commit := true
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func () {
+		if commit {
+			tx.Commit()
+		} else {
+			tx.Rollback()
+		}
+	}()
+
+	rd := bufio.NewReader(fd)
+	for {
+		line, err := rd.ReadString(';')
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			commit = false
+			return err
+		}
+		if _, err := tx.Exec(line); err != nil {
+			commit = false
+			return err
+		}
 	}
 }
 

@@ -4,20 +4,18 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"path"
+	"runtime"
 	"testing"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
-var DatabaseInitSQL = []string{
-	`CREATE TABLE users(id INTEGER NOT NULL PRIMARY KEY, name STRING UNIQUE)`,
-	`INSERT INTO users(id, name) VALUES (1, 'bob'), (2, 'mike'), (3, 'john')`,
-}
-
 type User struct {
-	Id   int64
-	Name string
+	Id               int64
+	Name             string
+	NotMappedToTable string
 }
 
 func withConnection(t *testing.T, fn func(*sql.DB)) {
@@ -27,11 +25,13 @@ func withConnection(t *testing.T, fn func(*sql.DB)) {
 		t.Fatalf("cannot create database: %s", err)
 	}
 
-	for _, sql := range DatabaseInitSQL {
-		if _, err := db.Exec(sql); err != nil {
-			t.Fatalf("cannot execute init sql: %s", err)
-		}
+	_, filepath, _, _ := runtime.Caller(0)
+	sqlpath := path.Join(path.Dir(filepath), "schema_test.sql")
+	if err := ExecFile(db, sqlpath); err != nil {
+		t.Fatalf("cannot execute init sql: %s", err)
+		return
 	}
+
 	fn(db)
 	defer db.Close()
 	defer os.Remove(dbpath)
