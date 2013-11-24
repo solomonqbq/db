@@ -44,7 +44,7 @@ func (m *TableMapping) Save(item interface{}) (created bool, err error) {
 				pkfield = f
 				continue
 			}
-			fieldNames = append(fieldNames, field.name)
+			fieldNames = append(fieldNames, field.dbname)
 			args = append(args, f.Addr().Interface())
 		}
 	}
@@ -60,7 +60,7 @@ func (m *TableMapping) Save(item interface{}) (created bool, err error) {
 				sqlChunks = append(sqlChunks, name, `" = ?, "`)
 			}
 		}
-		sqlChunks = append(sqlChunks, ` WHERE "`, table.pkfield.name, `" = ?`)
+		sqlChunks = append(sqlChunks, ` WHERE "`, table.pkfield.dbname, `" = ?`)
 		sql := strings.Join(sqlChunks, "")
 		// value for WHERE <primary key> = ?
 		args = append(args, pkfield.Addr().Interface())
@@ -75,7 +75,7 @@ func (m *TableMapping) Save(item interface{}) (created bool, err error) {
 			if i == len(fieldNames)-1 {
 				sqlChunks = append(sqlChunks, name, `") VALUES(`)
 			} else {
-				sqlChunks = append(sqlChunks, name, `", `)
+				sqlChunks = append(sqlChunks, name, `", "`)
 			}
 		}
 		for i := len(fieldNames); i > 0; i-- {
